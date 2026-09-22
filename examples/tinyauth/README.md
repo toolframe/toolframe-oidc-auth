@@ -39,6 +39,27 @@ explicitly; they never disable TLS verification. Browser trust is separate from
 Python trust. TinyAuth's upstream-provider `INSECURE` setting is not an option
 for making TinyAuth itself an HTTP OIDC server.
 
+### Use an existing mkcert CA
+
+If your browser already trusts a local [mkcert](https://github.com/FiloSottile/mkcert)
+CA, issue a certificate for the two fixture hostnames and select the Compose
+override instead of Caddy's internal CA. Adjust the names to match `.env`:
+
+```sh
+mkcert -cert-file certs/localhost.pem -key-file certs/localhost-key.pem tinyauth.localhost app.localhost
+chmod 600 certs/localhost-key.pem
+cp "$(mkcert -CAROOT)/rootCA.pem" certs/root.crt
+docker compose -f compose.yaml -f compose.mkcert.yaml up -d --wait
+```
+
+Only the public CA certificate and the fixture's leaf certificate/key are used;
+never copy or mount mkcert's `rootCA-key.pem`. This does not install a new trust
+root or disable TLS verification. Use both Compose files on subsequent commands,
+or set `COMPOSE_FILE=compose.yaml:compose.mkcert.yaml` in the local `.env`.
+If switching a running fixture, restart the Toolframe OIDC worker after replacing
+`certs/root.crt`, since its HTTP client retains the previous CA in memory.
+Do not run the Caddy CA export command when using this override.
+
 ## Configure the installed application
 
 Follow the plugin README's coordinated package installation and Auth v2 migration.

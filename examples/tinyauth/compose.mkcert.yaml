@@ -1,0 +1,5 @@
+services:
+  tls:
+    volumes:
+      - ./Caddyfile.mkcert:/etc/caddy/Caddyfile:ro
+      - ./certs:/etc/caddy/certs:ro

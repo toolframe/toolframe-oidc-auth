@@ -34,7 +34,14 @@ async def tinyauth(browser, url, issuer):
         issuer + "/api/oidc/authorize-complete", json={"ticket": ticket}
     )
     assert consent.status_code == 200, "TinyAuth consent failed"
-    result = await browser.get(consent.json()["redirect_uri"])
+    result = await browser.get(
+        consent.json()["redirect_uri"],
+        headers={
+            "Sec-Fetch-Site": "cross-site",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Dest": "document",
+        },
+    )
     assert result.status_code in (302, 303), (
         f"Toolframe callback failed: {result.status_code} {result.text}"
     )
@@ -53,6 +60,17 @@ async def run(origin, issuer, ca):
             f"Login start: {login.status_code} {login.text}"
         )
         await tinyauth(dashboard, login.headers["location"], issuer)
+        landing = await dashboard.get(
+            origin + "/",
+            headers={
+                "Sec-Fetch-Site": "cross-site",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Dest": "document",
+            },
+        )
+        assert landing.status_code == 200, (
+            f"Dashboard return: {landing.status_code} {landing.text}"
+        )
         context = (await dashboard.get(origin + "/_toolframe/auth/context")).json()
         assert context["actor"] == "user" and not context["local_control"], context
         assert "system.auth.self" in context["allowed_scopes"]
