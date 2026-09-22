@@ -1,0 +1,15 @@
+/.venv/
+/dist/
+/build/
+/.pytest_cache/
+/.ruff_cache/
+__pycache__/
+*.py[cod]
+/examples/tinyauth/.env
+/examples/tinyauth/secrets/
+/examples/tinyauth/certs/
+
+# Local working documents, issue state, and development worktrees.
+/.local/
+/.issues/
+/.worktrees/

@@ -1,0 +1,206 @@
+# Toolframe OIDC Auth
+
+Use one OIDC identity for Dashboard sign-in and separate, revocable OAuth grants
+for third-party agents. Authlib implements the upstream OIDC client and downstream
+OAuth authorization server. Toolframe Auth owns local users, browser sessions and
+permission grants; MCP Auth consumes the shared token-verification service.
+
+This plugin requires matching OIDC-capable SDK, Core, Auth, Dashboard Auth and MCP
+Auth builds. These additions are not present in older packages with the same
+pre-release version. Build and install the coordinated wheels before enabling it.
+The OIDC plugin is optional and is not included in the standard launcher bundle.
+
+## Quick start
+
+1. Build this checkout with Python 3.14 and `uv build --no-sources --wheel`.
+   Put the matching SDK wheel in your package source/wheelhouse.
+2. Install compatible Core, Auth and Dashboard packages. For an existing Auth v1
+   store, back it up with its retained secrets, stage the new Auth wheel with
+   `toolframe --home APP plugin update auth --source AUTH_WHEEL`, inspect
+   `toolframe --home APP migrate plan auth`, then apply that returned plan using
+   `toolframe --home APP migrate apply auth --plan-id PLAN_ID`. Migration v2 only
+   adds user, external-identity, session and agent-grant tables.
+3. Register a confidential web client at the upstream identity provider, with
+   the exact callback `https://app.example/_toolframe/oidc/callback/google`.
+   Store its client secret in a regular file readable only by the application
+   owner (`chmod 600`); use an absolute path in configuration.
+4. Add the following desired-state settings to `APP/toolframe.toml`, preserving
+   the application's existing ID, plugin declarations and storage configuration.
+   Replace example values, then run `toolframe --home APP apply`.
+
+```toml
+[application]
+# Keep the existing application ID and other settings.
+public_url = "https://app.example"
+
+[access]
+mode = "protected"
+failure_mode = "closed"
+auth_provider = "auth"
+dashboard_auth = "dashboard-auth"
+oidc_provider = "oidc-auth"
+
+[mcp_access]
+mode = "protected"
+auth_provider = "mcp-auth"
+
+[plugins.auth.config]
+identity_provider = "oidc-auth"
+federated_identities = [
+  { issuer = "https://accounts.google.com", subject = "VERIFIED_GOOGLE_SUB", label = "Alice", scopes = ["entry-register.read"] },
+]
+
+[plugins.oidc-auth]
+source = "/absolute/path/to/toolframe_oidc_auth-0.1.0-py3-none-any.whl"
+enabled = true
+
+[plugins.oidc-auth.config]
+public_url = "https://app.example"
+scopes = ["entry-register.read"]
+dynamic_registration = true
+max_clients = 1000
+access_token_seconds = 300
+grant_seconds = 2592000
+
+[plugins.oidc-auth.config.providers.google]
+label = "Google"
+issuer = "https://accounts.google.com"
+server_metadata_url = "https://accounts.google.com/.well-known/openid-configuration"
+client_id = "GOOGLE_CLIENT_ID"
+client_secret_file = "/absolute/private/google-client-secret"
+```
+
+The `auth`, `dashboard-auth`, `mcp-auth` and SQLite provider must be enabled in the
+existing composition. Set Core's `application.public_url` and this plugin's
+`public_url` identically. Terminate HTTPS at a reverse proxy and preserve the
+canonical Host. Core never derives its issuer from forwarded headers. Only
+explicit OAuth routes allow cross-origin entry; Dashboard management and consent
+submission remain same-origin. Public-host requests cannot inherit proxy-loopback
+operator privileges. Configure proxy request limits for publicly exposed login
+and dynamic-registration endpoints.
+
+The login page offers **Continue with Google** alongside Access Password login.
+Admission uses an administrator-verified **issuer + subject**, never an email
+address. The allowlist creates a local user on first successful login. Later
+changes belong to **User access** or the protected user-management API; changing
+that initial-admission entry does not overwrite an existing user. Unlisted
+identities are rejected. A user needs the relevant business scopes before they
+can delegate them to an agent. `system.auth.users` grants scoped user management;
+each federated user receives `system.auth.self` for their own connections.
+
+## Google, Keycloak and TinyAuth
+
+Upstream providers share the same Authlib adapter; they do not need separate
+Toolframe authentication implementations. Use Keycloak as an identity broker by
+setting its realm issuer and discovery URL and registering the same Toolframe
+callback under a chosen provider ID, for example `keycloak`. Google can then be
+configured as an upstream provider within Keycloak. Toolframe still owns local
+permissions and issues the app-specific access token.
+
+Each provider accepts `issuer`, `server_metadata_url`, `client_id`,
+`client_secret_file`, optional `label`, optional `ca_file`, and
+`token_endpoint_auth_method` (`client_secret_basic`, the default, or
+`client_secret_post`). HTTPS certificate validation stays enabled. `ca_file` adds
+a private CA for a controlled deployment; client secrets and IdP tokens are never
+included in browser presentation or the configuration journal. A changed secret
+file requires plugin reload. Provider metadata is discovered lazily, so an IdP
+outage does not prevent plugin startup or invalidate existing local sessions.
+
+See the [TinyAuth Docker fixture](examples/tinyauth/README.md) for reproducible,
+local TLS, user and client provisioning. Real acceptance covers TinyAuth; Google
+and Keycloak use the documented generic path but need deployment-specific live
+verification. [Google OIDC documentation](https://developers.google.com/identity/openid-connect/openid-connect),
+[Keycloak identity brokering](https://www.keycloak.org/docs/latest/server_admin/index.html#_identity_broker),
+[Authlib Starlette OIDC client](https://docs.authlib.org/en/latest/client/starlette.html)
+and [Authlib authorization server](https://docs.authlib.org/en/latest/oauth2/server.html)
+describe the upstream protocols and library integration.
+
+## Connect an agent
+
+Give an OAuth-capable MCP client `https://app.example/mcp`. A protected request
+returns a Bearer challenge pointing at protected-resource metadata. The client
+can discover the authorization server, register, request consent and exchange an
+authorization code using PKCE S256. Consent displays the client ID, name, redirect
+URI, target resource and requested scopes; display names are unverified client
+metadata. If necessary, the user signs in at the upstream provider. Dashboard
+and Agent flows resolve to the same local user, with independent credentials.
+
+OAuth endpoints are `/oauth/authorize`, `/oauth/token`, `/oauth/register` (when
+enabled) and `/oauth/revoke`. Authorization-server metadata is
+`/.well-known/oauth-authorization-server/oauth`; resource metadata is
+`/.well-known/oauth-protected-resource/mcp`. Both authorization and token requests
+must include `resource=https://app.example/mcp`. This is the default allowed
+resource; `resources` can declare additional exact URLs for custom consumers of
+the generic verifier. Core currently integrates that verifier with MCP only.
+
+This release supports public clients, authorization-code + S256, refresh-token
+rotation, static registration and bounded RFC 7591 dynamic registration. An
+omitted registration authentication method selects `none`, explicitly returned
+in the registration response. Explicit secret-based client authentication is
+rejected. No wildcard redirects are accepted: redirects must exactly match an
+HTTPS URL or an HTTP loopback URL. To disable DCR, use:
+
+```toml
+[plugins.oidc-auth.config]
+# Include the other required settings from above.
+dynamic_registration = false
+clients = [
+  { client_id = "desktop-agent", client_name = "Desktop agent", redirect_uris = ["http://127.0.0.1:8347/callback"] },
+]
+```
+
+Advertise only the business scopes you intend to expose through this issuer.
+Some MCP clients request every scope in resource metadata. Consent always shows
+the actual requested set. System permissions cannot be delegated. Client ID
+Metadata Documents (CIMD), confidential downstream clients, device grants,
+client-credentials grants, SAML, downstream OIDC ID tokens and automatic
+account linking are outside this release. An upstream ID/access token is never
+accepted as an app bearer token. Existing `tf_mcp_` keys remain usable alongside
+OAuth; an unavailable optional OAuth plugin does not disable key verification.
+
+## Credentials, revocation and backup
+
+OAuth access tokens last 300 seconds by default (30–900 configurable); grants
+last 30 days by default (60 seconds–one year configurable). Tokens use 256 random
+bits and only digests are persisted. Codes expire after 60 seconds and are single
+use. Refresh tokens rotate, cannot outlive the grant, and replay revokes the
+whole grant. Every MCP admission checks token expiry, resource binding, current
+user permissions and grant status. Already admitted operations may finish.
+
+**Connected agents** lets the user revoke a connection without signing out of
+Dashboard. Disabling the user invalidates sessions and revokes all their grants.
+Logout ends the local browser session; it does not globally log out the IdP or
+revoke agent grants. Permission reductions take effect on subsequent admissions.
+OAuth authorization is explicit on each new flow; there is no implicit consent
+based solely on an upstream login.
+
+The plugin persists encrypted, browser-bound ten-minute authorization flows and
+code/token digests in its managed store. Pending flows are capped at 1000 and
+expired flows are removed when new flows are created. Client registrations are
+persistent and bounded by `max_clients`; they are not automatically deleted.
+Token and grant history currently requires operator-managed retention. Back up
+`data/plugins/auth/data.sqlite`, `data/plugins/oidc-auth/data.sqlite`, retained
+`.toolframe/secrets/`, composition, and referenced upstream secret files together,
+using consistent SQLite backups. Keep the `oidc-auth/flow-key.key` secret across
+reloads/restarts. A missing key with an existing store blocks activation; restore it from backup.
+
+## Development checks
+
+With matching SDK, Auth and SQLite packages installed in a Python 3.14 venv:
+
+```sh
+uv pip install --python .venv/bin/python --find-links ../wheelhouse -e .
+uv pip install --python .venv/bin/python pytest pytest-asyncio ruff
+.venv/bin/pytest -q
+.venv/bin/ruff check src tests examples
+```
+
+Tests use real managed SQLite and Authlib grants. They cover PKCE rejection,
+resource binding, one-use codes, refresh rotation/replay, browser-bound consent,
+explicit denial, client registration and revocation. Core's coordinated suite
+covers real workers, discovery, proxy authority and optional-provider outages;
+the fixture script exercises an installed app through real FastMCP OAuth.
+
+## License
+
+Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

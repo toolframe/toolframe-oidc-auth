@@ -1,0 +1,14 @@
+{
+    admin off
+    auto_https disable_redirects
+}
+
+{$TINYAUTH_URL} {
+    tls internal
+    reverse_proxy tinyauth:3000
+}
+
+{$TOOLFRAME_URL} {
+    tls internal
+    reverse_proxy host.docker.internal:9876
+}

@@ -1,0 +1,49 @@
+name: toolframe-oidc-fixture
+services:
+  tinyauth:
+    image: ghcr.io/tinyauthapp/tinyauth:v5.2.0
+    environment:
+      TINYAUTH_APPURL: "${TINYAUTH_URL:-https://tinyauth.localhost:18443}"
+      TINYAUTH_LABELPROVIDER: none
+      TINYAUTH_ANALYTICS_ENABLED: "false"
+      TINYAUTH_DATABASE_DRIVER: sqlite
+      TINYAUTH_DATABASE_PATH: /data/tinyauth.db
+      TINYAUTH_AUTH_SUBDOMAINSENABLED: "false"
+      TINYAUTH_AUTH_SECURECOOKIE: "true"
+      TINYAUTH_AUTH_USERSFILE: /run/secrets/tinyauth-users
+      TINYAUTH_AUTH_USERATTRIBUTES_USER_NAME: Toolframe Fixture User
+      TINYAUTH_AUTH_USERATTRIBUTES_USER_EMAIL: fixture@example.test
+      TINYAUTH_OIDC_PRIVATEKEYPATH: /data/oidc/key.pem
+      TINYAUTH_OIDC_PUBLICKEYPATH: /data/oidc/key.pub
+      TINYAUTH_OIDC_CLIENTS_TOOLFRAME_CLIENTID: toolframe-local
+      TINYAUTH_OIDC_CLIENTS_TOOLFRAME_CLIENTSECRETFILE: /run/secrets/tinyauth-client-secret
+      TINYAUTH_OIDC_CLIENTS_TOOLFRAME_NAME: Toolframe Local Fixture
+      TINYAUTH_OIDC_CLIENTS_TOOLFRAME_TRUSTEDREDIRECTURIS: "${TOOLFRAME_OIDC_CALLBACK:?Run prepare.py first}"
+      TINYAUTH_LOG_STREAMS_HTTP_ENABLED: "false"
+    expose: ["3000"]
+    volumes: ["tinyauth-data:/data"]
+    secrets: [tinyauth-users, tinyauth-client-secret]
+  tls:
+    image: caddy:2.11.4-alpine
+    environment:
+      TINYAUTH_URL: "${TINYAUTH_URL:-https://tinyauth.localhost:18443}"
+      TOOLFRAME_URL: "${TOOLFRAME_URL:-https://app.localhost:18444}"
+    ports:
+      - "127.0.0.1:18443:18443"
+      - "127.0.0.1:18444:18444"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      tinyauth:
+        condition: service_healthy
+secrets:
+  tinyauth-users:
+    file: ./secrets/tinyauth-users
+  tinyauth-client-secret:
+    file: ./secrets/tinyauth-client-secret
+volumes:
+  tinyauth-data:
+  caddy-data:
+  caddy-config:
