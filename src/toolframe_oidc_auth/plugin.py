@@ -10,6 +10,7 @@ import re
 import secrets
 import ssl
 import time
+from importlib.resources import files
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
@@ -677,6 +678,17 @@ plugin = PluginDefinition(
         },
     },
     store=StoreSchema(
-        revision="v1", migrations=(Migration(revision="v1", sql=SCHEMA),)
+        revision="v1",
+        migrations=(
+            Migration(
+                revision="v1",
+                sql=SCHEMA,
+                dialects={
+                    "postgresql": files(__package__)
+                    .joinpath("migrations", "v1.postgresql.sql")
+                    .read_text()
+                },
+            ),
+        ),
     ),
 )
