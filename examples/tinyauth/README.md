@@ -1,25 +1,32 @@
 # TinyAuth OIDC acceptance fixture
 
 This local Docker Compose fixture provisions TinyAuth v5.2.0, a fixed OIDC client,
-a fixture user and Caddy TLS entirely from files. It exercises Toolframe as an
-OIDC client and OAuth issuer, with a real FastMCP client. It does not replace
+a fixture user and Traefik v3.7.13 TLS routing entirely from files. It exercises
+Toolframe as an OIDC client and OAuth issuer, with a real FastMCP client. It does not replace
 Toolframe's local permissions, consent or token service.
 
 ## Start
 
+Install [mkcert](https://github.com/FiloSottile/mkcert) and establish trust in its
+local CA according to your browser's certificate policy. If that CA is already
+trusted, reuse it. Prepare the fixture and a certificate for both hostnames:
+
 ```sh
 cd examples/tinyauth
 python3 prepare.py
+mkcert -cert-file certs/localhost.pem -key-file certs/localhost-key.pem tinyauth.localhost app.localhost
+chmod 600 certs/localhost-key.pem
+cp "$(mkcert -CAROOT)/rootCA.pem" certs/root.crt
 docker compose up -d --wait
-docker compose cp tls:/data/caddy/pki/authorities/local/root.crt certs/root.crt
 ```
 
 Default addresses are `https://tinyauth.localhost:18443` and
-`https://app.localhost:18444`. Caddy proxies the latter to a host Toolframe process
+`https://app.localhost:18444`. Traefik proxies the latter to a host Toolframe process
 on port 9876. Docker Desktop supplies `host.docker.internal`; on Linux configure
 that host mapping explicitly. Both published ports bind **127.0.0.1 only**.
-No Docker socket is mounted. Volumes retain the database, OIDC signing keys and
-TLS CA. Stop with `docker compose down`; retain volumes to preserve that state.
+No Docker socket is mounted. The named volume retains the database and OIDC
+signing keys; certificates remain in the local `certs/` directory. Stop with
+`docker compose down`; retain the volume and local files to preserve that state.
 
 TinyAuth requires an HTTPS issuer with a multi-label hostname. Ensure these
 names resolve to loopback in the host process as well as the browser. DNS proxies
@@ -27,38 +34,44 @@ may intercept `.localhost`; `prepare.py --issuer https://YOUR_LOCAL_NAME:18443
 --app-origin https://YOUR_APP_NAME:18444` selects existing local names. The helper
 never overwrites `.env` or existing secret files; edit `.env` explicitly when
 changing an already provisioned fixture. Use only the dedicated fixture ports.
+When choosing other hostnames, use those same names in the mkcert command.
+Traefik derives its Host rules from the HTTPS origins in `.env`; the issuer and
+application ports remain 18443 and 18444 respectively.
 
 The deliberately public fixture credentials are **user / password** and a
 fixture-only client secret in `secrets/tinyauth-client-secret`. These are not
 production credentials. The helper writes credentials as mode 0600; `.env`,
 `secrets/` and `certs/` are ignored by Git. Do not expose this fixture publicly.
 
-Trust the generated CA in a dedicated test browser/profile according to your
-browser's certificate policy. Application and Python tests load `certs/root.crt`
-explicitly; they never disable TLS verification. Browser trust is separate from
+Application and Python tests load `certs/root.crt` explicitly; they never disable
+TLS verification. Browser trust is separate from
 Python trust. TinyAuth's upstream-provider `INSECURE` setting is not an option
 for making TinyAuth itself an HTTP OIDC server.
 
-### Use an existing mkcert CA
-
-If your browser already trusts a local [mkcert](https://github.com/FiloSottile/mkcert)
-CA, issue a certificate for the two fixture hostnames and select the Compose
-override instead of Caddy's internal CA. Adjust the names to match `.env`:
-
-```sh
-mkcert -cert-file certs/localhost.pem -key-file certs/localhost-key.pem tinyauth.localhost app.localhost
-chmod 600 certs/localhost-key.pem
-cp "$(mkcert -CAROOT)/rootCA.pem" certs/root.crt
-docker compose -f compose.yaml -f compose.mkcert.yaml up -d --wait
-```
-
 Only the public CA certificate and the fixture's leaf certificate/key are used;
-never copy or mount mkcert's `rootCA-key.pem`. This does not install a new trust
-root or disable TLS verification. Use both Compose files on subsequent commands,
-or set `COMPOSE_FILE=compose.yaml:compose.mkcert.yaml` in the local `.env`.
+never copy or mount mkcert's `rootCA-key.pem`. Starting this fixture does not
+install a new trust root or disable TLS verification.
 If switching a running fixture, restart the Toolframe OIDC worker after replacing
 `certs/root.crt`, since its HTTP client retains the previous CA in memory.
-Do not run the Caddy CA export command when using this override.
+
+### Proxy configuration and existing fixtures
+
+The `tls` service uses [Traefik's file provider](https://doc.traefik.io/traefik/reference/install-configuration/providers/others/file/).
+Static entry points and an internal health check are in
+[`traefik/traefik.yaml`](traefik/traefik.yaml); host routing, upstream services and
+the mkcert certificate are in [`traefik/dynamic/routes.yaml`](traefik/dynamic/routes.yaml).
+Both upstreams receive the original Host header. TLS terminates at Traefik, while
+the app continues to own login, OIDC, OAuth and authorization. No ForwardAuth
+middleware or extra proxy login is needed. The Traefik dashboard/API and access
+logging are disabled; the health port is container-local.
+
+To update a fixture previously using Caddy, first back up its Compose settings
+and `.env`, and prepare or retain the mkcert files above. Remove an old
+`COMPOSE_FILE=compose.yaml:compose.mkcert.yaml` setting from `.env`, then run
+`docker compose up -d --wait`. Compose replaces only the `tls` service; TinyAuth's
+volume, client registration, app URLs and valid sessions remain usable. Old
+Caddy volumes are not deleted automatically. If the CA stays the same, no
+Toolframe worker restart is needed.
 
 ## Configure the installed application
 

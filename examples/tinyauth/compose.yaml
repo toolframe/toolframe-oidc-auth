@@ -24,7 +24,8 @@ services:
     volumes: ["tinyauth-data:/data"]
     secrets: [tinyauth-users, tinyauth-client-secret]
   tls:
-    image: caddy:2.11.4-alpine
+    image: traefik:v3.7.13
+    command: ["--configFile=/etc/traefik/traefik.yaml"]
     environment:
       TINYAUTH_URL: "${TINYAUTH_URL:-https://tinyauth.localhost:18443}"
       TOOLFRAME_URL: "${TOOLFRAME_URL:-https://app.localhost:18444}"
@@ -32,9 +33,13 @@ services:
       - "127.0.0.1:18443:18443"
       - "127.0.0.1:18444:18444"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
+      - ./traefik:/etc/traefik:ro
+      - ./certs:/etc/traefik-certs:ro
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--configFile=/etc/traefik/traefik.yaml"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     depends_on:
       tinyauth:
         condition: service_healthy
@@ -45,5 +50,3 @@ secrets:
     file: ./secrets/tinyauth-client-secret
 volumes:
   tinyauth-data:
-  caddy-data:
-  caddy-config:

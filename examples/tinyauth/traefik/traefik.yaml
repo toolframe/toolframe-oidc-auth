@@ -1,0 +1,19 @@
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+entryPoints:
+  tinyauth:
+    address: ":18443"
+  toolframe:
+    address: ":18444"
+  health:
+    address: "127.0.0.1:8082"
+
+ping:
+  entryPoint: health
+
+providers:
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true

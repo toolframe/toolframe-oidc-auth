@@ -31,4 +31,7 @@ for name, content in files.items():
         continue
     with os.fdopen(descriptor, "w") as handle:
         handle.write(content)
-print("Prepared local-only fixture. Run docker compose up -d --wait.")
+print(
+    "Prepared local-only fixture. Prepare mkcert certificates as described in "
+    "README.md, then run docker compose up -d --wait."
+)

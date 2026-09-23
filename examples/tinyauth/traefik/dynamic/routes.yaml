@@ -1,0 +1,28 @@
+http:
+  routers:
+    tinyauth:
+      entryPoints: [tinyauth]
+      rule: 'Host(`{{ env "TINYAUTH_URL" | trimPrefix "https://" | trimSuffix "/" | splitList ":" | first }}`)'
+      service: tinyauth
+      tls: {}
+    toolframe:
+      entryPoints: [toolframe]
+      rule: 'Host(`{{ env "TOOLFRAME_URL" | trimPrefix "https://" | trimSuffix "/" | splitList ":" | first }}`)'
+      service: toolframe
+      tls: {}
+  services:
+    tinyauth:
+      loadBalancer:
+        passHostHeader: true
+        servers:
+          - url: http://tinyauth:3000
+    toolframe:
+      loadBalancer:
+        passHostHeader: true
+        servers:
+          - url: http://host.docker.internal:9876
+
+tls:
+  certificates:
+    - certFile: /etc/traefik-certs/localhost.pem
+      keyFile: /etc/traefik-certs/localhost-key.pem
