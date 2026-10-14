@@ -6,8 +6,8 @@ OAuth authorization server. Toolframe Auth owns local users, browser sessions an
 permission grants; MCP Auth consumes the shared token-verification service.
 
 This plugin requires matching OIDC-capable SDK, Core, Auth, Dashboard Auth and MCP
-Auth builds. These additions are not present in older packages with the same
-pre-release version. Build and install the coordinated wheels before enabling it.
+Auth builds. These additions are not present in older builds with the same
+package version. Build and install the coordinated wheels before enabling it.
 The OIDC plugin is optional and is not included in the standard launcher bundle.
 
 ## Quick start
