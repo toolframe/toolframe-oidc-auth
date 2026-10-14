@@ -213,3 +213,5 @@ unchanged SQLite history. Provision this plugin’s stable store owner with the
 PostgreSQL provider before enabling it. The application still runs one Core;
 retain its private keys and configuration with the application home. Existing
 SQLite records are not imported automatically.
+
+For development hooks and contribution rules, see [Contributing](CONTRIBUTING.md).
