@@ -5,18 +5,17 @@ for third-party agents. Authlib implements the upstream OIDC client and downstre
 OAuth authorization server. Toolframe Auth owns local users, browser sessions and
 permission grants; MCP Auth consumes the shared token-verification service.
 
-This plugin requires matching OIDC-capable SDK, Core, Auth, Dashboard Auth and MCP
-Auth builds. These additions are not present in older builds with the same
-package version. Build and install the coordinated wheels before enabling it.
-The OIDC plugin is optional and is not included in the standard launcher bundle.
+This plugin requires SDK 0.3.0, Core 0.6.1, Auth 0.2.0, Dashboard Auth 0.1.3 and
+MCP Auth 0.2.0.
+The OIDC plugin is optional and is not enabled by the Entry Register template.
 
 ## Quick start
 
-1. Build this checkout with Python 3.14 and `uv build --no-sources --wheel`.
-   Put the matching SDK wheel in your package source/wheelhouse.
+1. Add the package to a running application, leaving it disabled until configured:
+   `toolframe --home APP plugin add pypi:toolframe-oidc-auth==0.2.0`.
 2. Install compatible Core, Auth and Dashboard packages. For an existing Auth v1
    store, back it up with its retained secrets, stage the new Auth wheel with
-   `toolframe --home APP plugin update auth --source AUTH_WHEEL`, inspect
+   `toolframe --home APP plugin update auth --source pypi:toolframe-auth==0.2.0`, inspect
    `toolframe --home APP migrate plan auth`, then apply that returned plan using
    `toolframe --home APP migrate apply auth --plan-id PLAN_ID`. Migration v2 only
    adds user, external-identity, session and agent-grant tables.
@@ -51,7 +50,7 @@ federated_identities = [
 ]
 
 [plugins.oidc-auth]
-source = "/absolute/path/to/toolframe_oidc_auth-0.1.0-py3-none-any.whl"
+source = "pypi:toolframe-oidc-auth==0.2.0"
 enabled = true
 
 [plugins.oidc-auth.config]
@@ -200,6 +199,8 @@ resource binding, one-use codes, refresh rotation/replay, browser-bound consent,
 explicit denial, client registration and revocation. Core's coordinated suite
 covers real workers, discovery, proxy authority and optional-provider outages;
 the fixture script exercises an installed app through real FastMCP OAuth.
+
+For release validation and Trusted Publisher setup, see [releasing](docs/releasing.md).
 
 ## License
 
