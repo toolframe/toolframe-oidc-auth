@@ -5,17 +5,17 @@ for third-party agents. Authlib implements the upstream OIDC client and downstre
 OAuth authorization server. Toolframe Auth owns local users, browser sessions and
 permission grants; MCP Auth consumes the shared token-verification service.
 
-This plugin requires SDK 0.3.0, Core 0.6.1, Auth 0.2.0, Dashboard Auth 0.1.3 and
-MCP Auth 0.2.0.
+This plugin requires SDK 0.4.0, Core 0.7.0, Auth 0.3.0, Dashboard Auth 0.2.0 and
+MCP Auth 0.3.0.
 The OIDC plugin is optional and is not enabled by the Entry Register template.
 
 ## Quick start
 
 1. Add the package to a running application, leaving it disabled until configured:
-   `toolframe --home APP plugin add pypi:toolframe-oidc-auth==0.2.0`.
+   `toolframe --home APP plugin add pypi:toolframe-oidc-auth==0.3.0`.
 2. Install compatible Core, Auth and Dashboard packages. For an existing Auth v1
    store, back it up with its retained secrets, stage the new Auth wheel with
-   `toolframe --home APP plugin update auth --source pypi:toolframe-auth==0.2.0`, inspect
+   `toolframe --home APP plugin update auth --source pypi:toolframe-auth==0.3.0`, inspect
    `toolframe --home APP migrate plan auth`, then apply that returned plan using
    `toolframe --home APP migrate apply auth --plan-id PLAN_ID`. Migration v2 only
    adds user, external-identity, session and agent-grant tables.
@@ -50,7 +50,7 @@ federated_identities = [
 ]
 
 [plugins.oidc-auth]
-source = "pypi:toolframe-oidc-auth==0.2.0"
+source = "pypi:toolframe-oidc-auth==0.3.0"
 enabled = true
 
 [plugins.oidc-auth.config]
@@ -208,7 +208,7 @@ Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 ## PostgreSQL storage
 
-Version 0.2 requires SDK 0.3 and declares PostgreSQL migration SQL alongside the
+Version 0.3 requires SDK 0.4 and declares PostgreSQL migration SQL alongside the
 unchanged SQLite history. Provision this plugin’s stable store owner with the
 PostgreSQL provider before enabling it. The application still runs one Core;
 retain its private keys and configuration with the application home. Existing
