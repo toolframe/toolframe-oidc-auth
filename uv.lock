@@ -1083,7 +1083,7 @@ wheels = [
 
 [[package]]
 name = "toolframe-auth"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "../toolframe-auth" }
 dependencies = [
     { name = "toolframe-sdk" },
@@ -1097,12 +1097,12 @@ dev = [
     { name = "pytest", specifier = ">=8,<10" },
     { name = "pytest-asyncio", specifier = ">=1,<2" },
     { name = "ruff", specifier = ">=0.12,<1" },
-    { name = "toolframe-storage-sqlite", editable = "../toolframe-storage-sqlite" },
+    { name = "toolframe-sql-sqlite", editable = "../toolframe-sql-sqlite" },
 ]
 
 [[package]]
 name = "toolframe-oidc-auth"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "authlib" },
@@ -1118,7 +1118,7 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "ruff" },
     { name = "toolframe-auth" },
-    { name = "toolframe-storage-sqlite" },
+    { name = "toolframe-sql-sqlite" },
 ]
 integration = [
     { name = "fastmcp" },
@@ -1139,13 +1139,13 @@ dev = [
     { name = "pytest-asyncio", specifier = ">=1,<2" },
     { name = "ruff", specifier = ">=0.12,<1" },
     { name = "toolframe-auth", editable = "../toolframe-auth" },
-    { name = "toolframe-storage-sqlite", editable = "../toolframe-storage-sqlite" },
+    { name = "toolframe-sql-sqlite", editable = "../toolframe-sql-sqlite" },
 ]
 integration = [{ name = "fastmcp", specifier = ">=4,<5" }]
 
 [[package]]
 name = "toolframe-sdk"
-version = "0.3.0"
+version = "0.4.0"
 source = { editable = "../toolframe-sdk" }
 dependencies = [
     { name = "jsonschema" },
@@ -1171,9 +1171,9 @@ dev = [
 ]
 
 [[package]]
-name = "toolframe-storage-sqlite"
-version = "0.3.1"
-source = { editable = "../toolframe-storage-sqlite" }
+name = "toolframe-sql-sqlite"
+version = "0.4.0"
+source = { editable = "../toolframe-sql-sqlite" }
 dependencies = [
     { name = "toolframe-sdk" },
 ]

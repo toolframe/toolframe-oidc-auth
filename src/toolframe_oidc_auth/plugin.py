@@ -74,7 +74,7 @@ def page(title, body):
 class OidcAuth(Plugin):
     def __init__(self, context):
         super().__init__(context)
-        self.config, self.store = context.config, context.storage()
+        self.config, self.store = context.config, context.sql()
         self.origin = self.config.get("public_url", "").rstrip("/")
         self.issuer = self.origin + "/oauth"
         self.scopes = self.config.get("scopes", [])
@@ -602,7 +602,7 @@ plugin = PluginDefinition(
     authorization=AuthorizationSpec(),
     private_secrets=("flow-key",),
     requires={
-        "storage": Requirement(service="toolframe.storage.sql"),
+        "sql": Requirement(service="toolframe.sql"),
         "auth": Requirement(service="toolframe.auth"),
     },
     services={

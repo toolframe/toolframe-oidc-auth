@@ -5,7 +5,7 @@ import pytest
 from toolframe_auth.plugin import AuthProvider
 from toolframe_auth.plugin import plugin as auth_definition
 from toolframe_sdk import RuntimeContext, call_context
-from toolframe_storage_sqlite.plugin import ADMIN_SERVICE, SQL_SERVICE, SqliteProvider
+from toolframe_sql_sqlite.plugin import ADMIN_SERVICE, SQL_SERVICE, SqliteProvider
 
 from toolframe_oidc_auth.plugin import OidcAuth, plugin
 
@@ -47,7 +47,7 @@ class Peer:
         current = call_context.get() or {}
         with caller(self.owner, current.get("principal")):
             return await target.invoke(
-                SQL_SERVICE if params["alias"] == "storage" else "toolframe.auth",
+                SQL_SERVICE if params["alias"] == "sql" else "toolframe.auth",
                 params["method"],
                 params["params"],
             )
@@ -58,7 +58,7 @@ async def provider(tmp_path):
     storage = SqliteProvider(
         RuntimeContext(
             None,
-            plugin_id="storage-sqlite",
+            plugin_id="sql-sqlite",
             generation="one",
             state_directory=tmp_path / "data",
         )
@@ -71,7 +71,7 @@ async def provider(tmp_path):
                 "ensure_store",
                 {"owner": definition.id, "schema": definition.store.model_dump()},
             )
-    router = {"storage": storage}
+    router = {"sql": storage}
     auth = AuthProvider(
         RuntimeContext(
             Peer("auth", router),
