@@ -19,7 +19,7 @@ metadata and licenses, runs Ruff and package tests against an installed wheel,
 and installs each distribution into a separate fresh consumer environment.
 Optional database/service integrations require their documented fixtures.
 
-Publish `toolframe-sdk==0.4.0` first. The coordinated order and native CLI channels are documented in
+Publish `toolframe-sdk==0.4.1` first. The coordinated order and native CLI channels are documented in
 [Toolframe's release guide](https://github.com/toolframe/toolframe-core/blob/main/docs/releasing.md).
 
 ## Trusted Publishers
@@ -49,7 +49,7 @@ sibling owner where the workflow exposes that variable.
 ## Publish and verify
 
 After the release commit and matching tag are available remotely, manually run
-`publish.yml` at `v0.2.0`, selecting `testpypi` first and then `pypi`.
+`publish.yml` at `v0.3.1`, selecting `testpypi` first and then `pypi`.
 A branch or mismatched tag is rejected. Downloaded files are the artifacts from
 that run; the publishing job does not rebuild them. Published files cannot be
 replaced under the same version.
@@ -58,7 +58,7 @@ After PyPI publication, verify a clean installation:
 
 ```sh
 uv venv --python 3.14.7 build/consumer
-uv pip install --python build/consumer/bin/python 'toolframe-oidc-auth==0.3.0'
+uv pip install --python build/consumer/bin/python 'toolframe-oidc-auth==0.3.1'
 uv pip check --python build/consumer/bin/python
 ```
 
