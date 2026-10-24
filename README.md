@@ -5,14 +5,14 @@ for third-party agents. Authlib implements the upstream OIDC client and downstre
 OAuth authorization server. Toolframe Auth owns local users, browser sessions and
 permission grants; MCP Auth consumes the shared token-verification service.
 
-This plugin requires SDK 0.4.0, Core 0.7.0, Auth 0.3.0, Dashboard Auth 0.2.0 and
+This plugin requires SDK 0.4, Core 0.7.0, Auth 0.3.0, Dashboard Auth 0.2.0 and
 MCP Auth 0.3.0.
 The OIDC plugin is optional and is not enabled by the Entry Register template.
 
 ## Quick start
 
 1. Add the package to a running application, leaving it disabled until configured:
-   `toolframe --home APP plugin add pypi:toolframe-oidc-auth==0.3.0`.
+   `toolframe --home APP plugin add pypi:toolframe-oidc-auth==0.3.1`.
 2. Install compatible Core, Auth and Dashboard packages. For an existing Auth v1
    store, back it up with its retained secrets, stage the new Auth wheel with
    `toolframe --home APP plugin update auth --source pypi:toolframe-auth==0.3.0`, inspect
@@ -50,7 +50,7 @@ federated_identities = [
 ]
 
 [plugins.oidc-auth]
-source = "pypi:toolframe-oidc-auth==0.3.0"
+source = "pypi:toolframe-oidc-auth==0.3.1"
 enabled = true
 
 [plugins.oidc-auth.config]
