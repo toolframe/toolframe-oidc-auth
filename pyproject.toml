@@ -11,7 +11,7 @@ license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
 authors = [{ name = "byfb", email = "62798989+byfb@users.noreply.github.com" }]
 requires-python = ">=3.14"
-dependencies = ["toolframe-sdk>=0.4,<0.5", "authlib==1.8.0", "httpx2>=2.8,<3", "starlette>=1,<2", "cryptography==50.0.2"]
+dependencies = ["toolframe-sdk>=0.4.0,<1", "authlib==1.8.0", "httpx2>=2.8,<3", "starlette>=1,<2", "cryptography==50.0.2"]
 
 [project.urls]
 Homepage = "https://github.com/toolframe/toolframe-oidc-auth"

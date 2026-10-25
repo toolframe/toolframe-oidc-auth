@@ -215,3 +215,6 @@ retain its private keys and configuration with the application home. Existing
 SQLite records are not imported automatically.
 
 For development hooks and contribution rules, see [Contributing](CONTRIBUTING.md).
+
+Plugin dependencies allow compatible SDK 0.x updates from the declared minimum.
+See the [SDK compatibility policy](https://github.com/toolframe/toolframe-sdk/blob/main/docs/compatibility.md) for API guarantees and minimum/latest verification.
