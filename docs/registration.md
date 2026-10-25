@@ -49,7 +49,7 @@ token expiry.
 ### Local SQLite recovery
 
 Use a Python environment containing this package and its `maintenance` extra
-(`toolframe-core` 0.8.x). Stop the application cleanly, allow outstanding
+(`toolframe-core>=0.8.0,<1`). Stop the application cleanly, allow outstanding
 ten-minute authorization flows to expire while stopped, and retain the normal
 complete application backup, including composition and private keys. Use the
 current complete Auth and OIDC stores; do not substitute historical or partial
@@ -79,9 +79,12 @@ Recovery also requires a Core maintenance parser compatible with the host's
 process inventory. Published Core 0.8.0 rejects inventories containing PGID 0,
 which can prevent recovery on Linux hosts reporting such entries even when the
 application is stopped. This OIDC package does not change or bypass that check.
-On affected hosts, recovery requires a Core release with compatible process
-inventory handling; Core 0.8.0 must not be treated as fixing this limitation.
-Keep the stores unchanged if ownership cannot be proven.
+On affected hosts, recovery requires a Core release containing the PGID 0
+inventory correction, targeted for 0.8.1. Verify that the selected released
+artifact contains that correction before recovery; Core 0.8.0 does not fix this
+limitation. The declared minimum describes maintenance API availability and does
+not require an unpublished Core version. Keep the stores unchanged if ownership
+cannot be proven.
 
 ### PostgreSQL recovery
 
