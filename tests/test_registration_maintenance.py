@@ -7,6 +7,7 @@ Auth grants below use the real Auth provider.
 """
 
 import hashlib
+import importlib.util
 import json
 import platform
 import shutil
@@ -16,19 +17,9 @@ import time
 from contextlib import closing
 
 import pytest
-import tomlkit
-import toolframe_core.maintenance as core_maintenance
 from conftest import caller
 from test_registration import register, restart
 from toolframe_auth.plugin import plugin as auth_definition
-from toolframe_core._state_sqlite import SQLiteCoreState
-from toolframe_core.config import (
-    ConfigFile,
-    PluginRequest,
-    atomic_write,
-    management_token,
-)
-from toolframe_core.maintenance import application_lock
 from toolframe_sdk import PluginError
 from toolframe_sql_sqlite.plugin import ADMIN_SERVICE
 from toolframe_sql_sqlite.plugin import plugin as sql_definition
@@ -36,10 +27,17 @@ from toolframe_sql_sqlite.plugin import plugin as sql_definition
 from toolframe_oidc_auth.maintenance import recover_legacy
 from toolframe_oidc_auth.plugin import plugin
 
+pytestmark = pytest.mark.skipif(
+    importlib.util.find_spec("toolframe_core") is None,
+    reason="Core-only offline recovery requires the operator extra; validated in the operator CI lane",
+)
+
 
 @pytest.fixture
 def process_snapshot(monkeypatch):
     """Supply this synthetic home's machine inventory without bypassing checks."""
+    import toolframe_core.maintenance as core_maintenance
+
     snapshot = {"stdout": "1 1 /sbin/init\n", "calls": 0}
     run = subprocess.run
 
@@ -55,6 +53,15 @@ def process_snapshot(monkeypatch):
 
 def stopped_layout(tmp_path, data):
     """Build Core's actual validated journal layout around managed SQLite files."""
+    import tomlkit
+    from toolframe_core._state_sqlite import SQLiteCoreState
+    from toolframe_core.config import (
+        ConfigFile,
+        PluginRequest,
+        atomic_write,
+        management_token,
+    )
+
     home = tmp_path / "home"
     config = ConfigFile(home)
     composition = config.initialize()
@@ -261,6 +268,8 @@ async def test_legacy_recovery_preserves_auth_only_grant_and_restores_capacity(
 async def test_maintenance_refuses_running_application_and_holds_startup_lock(
     legacy_home, tmp_path, monkeypatch
 ):
+    from toolframe_core.maintenance import application_lock
+
     home, _ = legacy_home
     with application_lock(home), pytest.raises(PluginError):
         recover_legacy(home)

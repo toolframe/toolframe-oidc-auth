@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "toolframe-oidc-auth"
-version = "0.3.1"
+version = "0.3.2"
 description = "Shared OIDC sign-in and OAuth delegation for Toolframe"
 readme = "README.md"
 license = "Apache-2.0"
@@ -23,11 +23,11 @@ Issues = "https://github.com/toolframe/toolframe-oidc-auth/issues"
 oidc-auth = "toolframe_oidc_auth.plugin:plugin"
 
 [project.optional-dependencies]
-maintenance = ["toolframe-core>=0.8,<0.9"]
+operator = ["toolframe-core>=0.8.0,<1"]
 
 [dependency-groups]
 integration = ["fastmcp>=4,<5"]
-dev = ["pytest>=8,<10", "pytest-asyncio>=1,<2", "ruff>=0.12,<1", "toolframe-sql-sqlite>=0.4.1,<0.5", "toolframe-auth>=0.3,<0.4", "toolframe-core>=0.8,<0.9"]
+dev = ["pytest>=8,<10", "pytest-asyncio>=1,<2", "ruff>=0.12,<1", "toolframe-sql-sqlite>=0.4.1,<1", "toolframe-auth>=0.3,<1", "toolframe-core>=0.8.0,<1"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

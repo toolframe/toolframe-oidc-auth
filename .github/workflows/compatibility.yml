@@ -67,12 +67,23 @@ jobs:
           plugin=(build/compatibility-wheel/toolframe_oidc_auth-*.whl)
           test "${#plugin[@]}" = 1
           echo "plugin=${plugin[0]}" >> "$GITHUB_OUTPUT"
+      - name: Enable native PostgreSQL SQL checks
+        shell: bash
+        run: |
+          pg_bin=$(pg_config --bindir)
+          test -x "$pg_bin/initdb"
+          echo "$pg_bin" >> "$GITHUB_PATH"
       - name: Verify installed wheel and package tests
         uses: toolframe/toolframe-sdk/.github/actions/plugin-compatibility@2e2a3d79f35fbdb04249e8351fe9c75fc2164269
         with:
           mode: ${{ matrix.sdk }}
           wheel: ${{ steps.wheels.outputs.plugin }}
           output: build/compatibility-${{ matrix.sdk }}
+      - name: Require runtime coverage and explicit Core-only skips
+        run: >-
+          python scripts/check_compatibility_results.py --mode runtime
+          --junit build/compatibility-${{ matrix.sdk }}/pytest.xml
+          --output build/compatibility-${{ matrix.sdk }}/coverage.json
       - name: Retain compatibility evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -81,5 +92,77 @@ jobs:
           path: |
             build/compatibility-${{ matrix.sdk }}/report.json
             build/compatibility-${{ matrix.sdk }}/pytest.xml
+            build/compatibility-${{ matrix.sdk }}/coverage.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  operator:
+    name: Installed operator extra
+    needs: wheel
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14.7'
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: '0.12.8'
+          enable-cache: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: compatibility-wheel
+          path: build/compatibility-wheel
+      - name: Install the unchanged wheel with operator dependencies
+        shell: bash
+        run: |
+          plugin=(build/compatibility-wheel/toolframe_oidc_auth-*.whl)
+          test "${#plugin[@]}" = 1
+          uv venv --python 3.14.7 build/operator/runtime
+          uv pip install --no-sources --python build/operator/runtime/bin/python \
+            --group dev "${plugin[0]}[operator]"
+          uv pip check --python build/operator/runtime/bin/python
+      - name: Verify installed Core and plugin metadata
+        run: |
+          build/operator/runtime/bin/python -I - <<'PY'
+          import importlib, importlib.metadata as metadata, json, pathlib, sys
+          from packaging.requirements import Requirement
+          plugin = metadata.distribution('toolframe-oidc-auth')
+          core = metadata.distribution('toolframe-core')
+          requirement = next(Requirement(value) for value in plugin.requires
+                             if Requirement(value).name == 'toolframe-core')
+          assert requirement.marker.evaluate({'extra': 'operator'})
+          assert core.version in requirement.specifier
+          prefix = pathlib.Path(sys.prefix).resolve()
+          locations = {}
+          for name in ('toolframe_core.maintenance', 'toolframe_oidc_auth.maintenance'):
+              location = pathlib.Path(importlib.import_module(name).__file__).resolve()
+              assert location.is_relative_to(prefix), location
+              locations[name] = str(location)
+          for distribution in (plugin, core):
+              direct = json.loads(distribution.read_text('direct_url.json') or '{}')
+              assert not direct.get('dir_info', {}).get('editable', False)
+          report = {'core': core.version, 'plugin': plugin.version, 'locations': locations}
+          pathlib.Path('build/operator/installed.json').write_text(json.dumps(report, indent=2) + '\n')
+          print(json.dumps(report))
+          PY
+      - name: Execute every Core-only recovery case
+        run: |
+          build/operator/runtime/bin/python -I -m pytest -q -p no:cacheprovider \
+            --junitxml build/operator/pytest.xml tests/test_registration_maintenance.py
+          python scripts/check_compatibility_results.py --mode operator \
+            --junit build/operator/pytest.xml --output build/operator/coverage.json
+      - name: Retain operator evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: compatibility-operator
+          path: |
+            build/operator/installed.json
+            build/operator/pytest.xml
+            build/operator/coverage.json
           if-no-files-found: warn
           retention-days: 14
