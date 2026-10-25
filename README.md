@@ -175,8 +175,13 @@ based solely on an upstream login.
 
 The plugin persists encrypted, browser-bound ten-minute authorization flows and
 code/token digests in its managed store. Pending flows are capped at 1000 and
-expired flows are removed when new flows are created. Client registrations are
-persistent and bounded by `max_clients`; they are not automatically deleted.
+expired flows are removed when new flows are created. Dynamic registrations are
+bounded by `max_clients`. New, unconsented registrations expire after
+`pending_client_seconds` (3600 by default) and can be replaced under capacity
+pressure. Signed-in consent flows receive ten-minute protection; user-consented
+clients remain persistent. Pre-v2 registrations remain protected until explicit
+cross-store recovery. See [registration capacity and recovery](docs/registration.md)
+for retry behavior, migration, operator recovery and anonymous traffic limits.
 Token and grant history currently requires operator-managed retention. Back up
 `data/plugins/auth/data.sqlite`, `data/plugins/oidc-auth/data.sqlite`, retained
 `.toolframe/secrets/`, composition, and referenced upstream secret files together,

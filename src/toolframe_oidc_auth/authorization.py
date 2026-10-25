@@ -222,13 +222,6 @@ class Registration(ClientRegistrationEndpoint):
             raise InvalidClientMetadataError(
                 "Supply a client name up to 120 characters"
             )
-        count = self.server.sync(
-            self.server.store.query("SELECT COUNT(*) AS n FROM oauth_clients")
-        )[0]["n"]
-        if count >= self.server.plugin.config.get("max_clients", 1000):
-            raise InvalidClientMetadataError(
-                "Client registration capacity reached; contact the operator"
-            )
         scopes = metadata.get("scope", " ".join(self.server.plugin.scopes)).split()
         if not set(scopes) <= set(self.server.plugin.scopes):
             raise InvalidClientMetadataError("Unknown client scopes")
@@ -239,10 +232,45 @@ class Registration(ClientRegistrationEndpoint):
                 "grant_types", ["authorization_code", "refresh_token"]
             ),
         )
+        now = time.time()
         self.server.sync(
             self.server.store.execute(
-                "INSERT INTO oauth_clients VALUES(?,?,?)",
-                [info["client_id"], json.dumps(metadata), time.time()],
+                "DELETE FROM oauth_clients WHERE registration_state='pending' "
+                "AND created_at<=? AND protected_until<=?",
+                [
+                    now - self.server.plugin.config.get("pending_client_seconds", 3600),
+                    now,
+                ],
+            )
+        )
+        count = self.server.sync(
+            self.server.store.query("SELECT COUNT(*) AS n FROM oauth_clients")
+        )[0]["n"]
+        limit = self.server.plugin.config.get("max_clients", 1000)
+        if count >= limit:
+            needed = count - limit + 1
+            candidates = self.server.sync(
+                self.server.store.query(
+                    "SELECT id FROM oauth_clients WHERE registration_state='pending' "
+                    "AND protected_until<=? ORDER BY created_at,id LIMIT ?",
+                    [now, needed],
+                )
+            )
+            if len(candidates) < needed:
+                raise InvalidClientMetadataError(
+                    "Client registration capacity is protected; retry later or contact the operator"
+                )
+            for candidate in candidates:
+                self.server.sync(
+                    self.server.store.execute(
+                        "DELETE FROM oauth_clients WHERE id=?", [candidate["id"]]
+                    )
+                )
+        self.server.sync(
+            self.server.store.execute(
+                "INSERT INTO oauth_clients(id,metadata,created_at,registration_state) "
+                "VALUES(?,?,?,'pending')",
+                [info["client_id"], json.dumps(metadata), now],
             )
         )
         return Client(info["client_id"], metadata)
@@ -284,6 +312,15 @@ class Server(AuthorizationServer):
         rows = self.sync(
             self.store.query("SELECT * FROM oauth_clients WHERE id=?", [client_id])
         )
+        if (
+            rows
+            and rows[0]["registration_state"] == "pending"
+            and rows[0]["created_at"]
+            + self.plugin.config.get("pending_client_seconds", 3600)
+            <= time.time()
+            and rows[0]["protected_until"] <= time.time()
+        ):
+            return None
         return Client(client_id, json.loads(rows[0]["metadata"])) if rows else None
 
     def active_grant(self, identifier, scope):
