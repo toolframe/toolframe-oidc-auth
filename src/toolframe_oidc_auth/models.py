@@ -24,6 +24,14 @@ CREATE TABLE oauth_tokens (
 CREATE INDEX oauth_tokens_grant ON oauth_tokens(grant_id);
 """
 
+# Existing registrations cannot be classified without the Auth store: a grant
+# may have committed before issuance of a local code failed.
+REGISTRATION_SCHEMA = """
+ALTER TABLE oauth_clients ADD COLUMN registration_state TEXT NOT NULL DEFAULT 'legacy';
+ALTER TABLE oauth_clients ADD COLUMN protected_until REAL NOT NULL DEFAULT 0;
+CREATE INDEX oauth_clients_registration ON oauth_clients(registration_state,created_at);
+"""
+
 
 def digest(value):
     return hashlib.sha256(value.encode("utf-8")).hexdigest()

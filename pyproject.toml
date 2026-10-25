@@ -22,9 +22,12 @@ Issues = "https://github.com/toolframe/toolframe-oidc-auth/issues"
 [project.entry-points."toolframe.plugins"]
 oidc-auth = "toolframe_oidc_auth.plugin:plugin"
 
+[project.optional-dependencies]
+maintenance = ["toolframe-core>=0.8,<0.9"]
+
 [dependency-groups]
 integration = ["fastmcp>=4,<5"]
-dev = ["pytest>=8,<10", "pytest-asyncio>=1,<2", "ruff>=0.12,<1", "toolframe-sql-sqlite>=0.4.1,<0.5", "toolframe-auth>=0.3,<0.4"]
+dev = ["pytest>=8,<10", "pytest-asyncio>=1,<2", "ruff>=0.12,<1", "toolframe-sql-sqlite>=0.4.1,<0.5", "toolframe-auth>=0.3,<0.4", "toolframe-core>=0.8,<0.9"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

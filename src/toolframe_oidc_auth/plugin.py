@@ -31,7 +31,7 @@ from toolframe_sdk import (
 )
 
 from .authorization import Request, Server
-from .models import SCHEMA, digest, valid_redirect
+from .models import REGISTRATION_SCHEMA, SCHEMA, digest, valid_redirect
 
 SERVICE = "toolframe.oidc"
 TOKEN_SERVICE = "toolframe.oauth.tokens"
@@ -302,7 +302,7 @@ class OidcAuth(Plugin):
         result["session"] = {"token": login["token"], "expires_at": login["expires_at"]}
         return result
 
-    async def authorization_server(self, action, request, *, user=None):
+    async def authorization_server(self, action, request, *, user=None, protect=False):
         loop = asyncio.get_running_loop()
         async with self.store.transaction() as store:
             server = Server(self, loop, store)
@@ -330,6 +330,14 @@ class OidcAuth(Plugin):
                     grant = server.get_consent_grant(oauth_request)
                     if not grant.request.scope:
                         return response({"error": "invalid_scope"}, 400)
+                    if protect:
+                        server.sync(
+                            store.execute(
+                                "UPDATE oauth_clients SET protected_until=? "
+                                "WHERE id=? AND registration_state='pending'",
+                                [time.time() + 600, grant.request.client.client_id],
+                            )
+                        )
                     return {
                         "client_id": grant.request.client.client_id,
                         "client_name": grant.request.client.metadata.get(
@@ -364,6 +372,25 @@ class OidcAuth(Plugin):
         expiry = min(
             time.time() + self.config.get("grant_seconds", 2592000),
             actor.get("expires_at") or float("inf"),
+        )
+        if expiry <= time.time():
+            raise PluginError(
+                "invalid_credentials", "Sign in again to authorize an agent"
+            )
+        # An anonymous pre-login flow does not reserve capacity. It may need a
+        # new registration by the time upstream authentication completes.
+        validated = await self.authorization_server(
+            "validate", pending["request"], protect=True
+        )
+        if "status" in validated:
+            return validated
+
+        # Persist retention before the cross-store grant call. Even a process
+        # crash after Auth commits must not leave its client reclaimable.
+        # A failed issuance conservatively retains this user-consented client.
+        await self.store.execute(
+            "UPDATE oauth_clients SET registration_state='retained',protected_until=0 WHERE id=?",
+            [pending["client_id"]],
         )
         grant = await self.context.call(
             "auth",
@@ -495,14 +522,24 @@ class OidcAuth(Plugin):
                 path.rsplit("/", 1)[-1], query, browser
             )
         elif path == "/oauth/authorize" and method == "GET":
-            pending = await self.authorization_server("validate", request)
+            signed_in = bool(
+                actor
+                and actor.get("kind") == "user"
+                and actor.get("user_id")
+                and (
+                    actor.get("expires_at") is None or actor["expires_at"] > time.time()
+                )
+            )
+            pending = await self.authorization_server(
+                "validate", request, protect=signed_in
+            )
             if "status" in pending:
                 return pending
             pending.update(
                 request=request,
                 phase="consent",
                 csrf=secrets.token_urlsafe(32),
-                user_id=(actor or {}).get("user_id"),
+                user_id=actor["user_id"] if signed_in else None,
             )
             identifier = await self.save_flow(browser, pending)
             options = "".join(
@@ -646,6 +683,11 @@ plugin = PluginDefinition(
             },
             "dynamic_registration": {"type": "boolean"},
             "max_clients": {"type": "integer", "minimum": 1, "maximum": 10000},
+            "pending_client_seconds": {
+                "type": "integer",
+                "minimum": 60,
+                "maximum": 86400,
+            },
             "access_token_seconds": {"type": "integer", "minimum": 30, "maximum": 900},
             "grant_seconds": {"type": "integer", "minimum": 60, "maximum": 31536000},
             "clients": {
@@ -678,7 +720,7 @@ plugin = PluginDefinition(
         },
     },
     store=StoreSchema(
-        revision="v1",
+        revision="v2",
         migrations=(
             Migration(
                 revision="v1",
@@ -686,6 +728,16 @@ plugin = PluginDefinition(
                 dialects={
                     "postgresql": files(__package__)
                     .joinpath("migrations", "v1.postgresql.sql")
+                    .read_text()
+                },
+            ),
+            Migration(
+                revision="v2",
+                parent="v1",
+                sql=REGISTRATION_SCHEMA,
+                dialects={
+                    "postgresql": files(__package__)
+                    .joinpath("migrations", "v2.postgresql.sql")
                     .read_text()
                 },
             ),

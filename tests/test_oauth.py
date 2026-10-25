@@ -66,7 +66,7 @@ async def code(provider, actor, **changes):
     ]
     return {
         "grant_type": "authorization_code",
-        "client_id": "agent",
+        "client_id": request["client_id"],
         "code": callback["code"][0],
         "redirect_uri": request["redirect_uri"],
         "resource": request["resource"],
