@@ -54,7 +54,7 @@ class Peer:
 
 
 @pytest.fixture
-async def provider(tmp_path):
+async def storage(tmp_path):
     storage = SqliteProvider(
         RuntimeContext(
             None,
@@ -64,12 +64,24 @@ async def provider(tmp_path):
         )
     )
     await storage.activate()
+    try:
+        yield storage
+    finally:
+        await storage.dispose()
+
+
+@pytest.fixture
+async def provider(tmp_path, storage, request):
     for definition in (auth_definition, plugin):
+        schema = definition.store.model_dump()
+        if definition.id == "oidc-auth" and getattr(request, "param", None) == "v1":
+            schema["revision"] = "v1"
+            schema["migrations"] = schema["migrations"][:1]
         with caller(management=True):
             await storage.invoke(
                 ADMIN_SERVICE,
                 "ensure_store",
-                {"owner": definition.id, "schema": definition.store.model_dump()},
+                {"owner": definition.id, "schema": schema},
             )
     router = {"sql": storage}
     auth = AuthProvider(
@@ -131,7 +143,4 @@ async def provider(tmp_path):
             "federated_login",
             {"issuer": "https://identity.test", "subject": "user"},
         )
-    try:
-        yield oidc, auth, login
-    finally:
-        await storage.dispose()
+    yield oidc, auth, login

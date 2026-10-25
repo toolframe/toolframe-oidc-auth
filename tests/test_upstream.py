@@ -1,6 +1,7 @@
 """Exercise Authlib OIDC verification against a signed, controlled identity provider."""
 
 import json
+import re
 import time
 from urllib.parse import parse_qs, urlsplit
 
@@ -11,11 +12,25 @@ from conftest import caller
 from joserfc import jwt
 from joserfc.jwk import RSAKey
 from test_oauth import http
+from test_registration import authorize, register
 from toolframe_sdk import PluginError
 
 
-@pytest.mark.parametrize("invalid", [None, "iss", "aud", "nonce", "exp", "signature"])
-async def test_oidc_signature_claims_pkce_and_browser_binding(provider, invalid):
+@pytest.mark.parametrize(
+    "invalid,connect_agent",
+    [
+        (None, False),
+        (None, True),
+        ("iss", False),
+        ("aud", False),
+        ("nonce", False),
+        ("exp", False),
+        ("signature", False),
+    ],
+)
+async def test_oidc_signature_claims_pkce_and_browser_binding(
+    provider, invalid, connect_agent
+):
     oidc, auth, existing = provider
     key = RSAKey.generate_key(2048)
     key.ensure_kid()
@@ -71,7 +86,26 @@ async def test_oidc_signature_claims_pkce_and_browser_binding(provider, invalid)
 
     client = oidc.oauth.create_client("fixture")
     client.client_kwargs["transport"] = httpx2.MockTransport(upstream)
-    start = await http(oidc, "/_toolframe/oidc/login/fixture")
+    if connect_agent:
+        registration = await register(oidc)
+        identifier = json.loads(registration["body"])["client_id"]
+        consent = await authorize(oidc, identifier)
+        fields = dict(
+            re.findall(r'name="(transaction|csrf)" value="([^"]+)"', consent["body"])
+        )
+        start = await http(
+            oidc,
+            "/oauth/consent",
+            {
+                **fields,
+                "decision": "allow",
+                "provider": "fixture",
+            },
+            method="POST",
+            browser=consent["browser"],
+        )
+    else:
+        start = await http(oidc, "/_toolframe/oidc/login/fixture")
     authorization.update(parse_qs(urlsplit(start["headers"]["Location"]).query))
     data = {"state": authorization["state"][0], "code": "upstream-code"}
     with pytest.raises(PluginError, match="transaction"):
@@ -89,7 +123,17 @@ async def test_oidc_signature_claims_pkce_and_browser_binding(provider, invalid)
         result = await http(
             oidc, "/_toolframe/oidc/callback/fixture", data, browser=start["browser"]
         )
-        assert result["headers"]["Location"] == "/"
+        if connect_agent:
+            callback = parse_qs(urlsplit(result["headers"]["Location"]).query)
+            assert "code" in callback
+            with caller():
+                rows = await oidc.store.query(
+                    "SELECT registration_state FROM oauth_clients WHERE id=?",
+                    [identifier],
+                )
+            assert rows == [{"registration_state": "retained"}]
+        else:
+            assert result["headers"]["Location"] == "/"
         with caller():
             resolved = await auth.invoke(
                 "toolframe.auth", "resolve", {"token": result["session"]["token"]}
