@@ -75,6 +75,14 @@ then makes them eligible for normal registration cleanup. Restart the applicatio
 and retry registration. Do not restore just one store independently of its paired
 backup and the application's normal backup set.
 
+Recovery also requires a Core maintenance parser compatible with the host's
+process inventory. Published Core 0.8.0 rejects inventories containing PGID 0,
+which can prevent recovery on Linux hosts reporting such entries even when the
+application is stopped. This OIDC package does not change or bypass that check.
+On affected hosts, recovery requires a Core release with compatible process
+inventory handling; Core 0.8.0 must not be treated as fixing this limitation.
+Keep the stores unchanged if ownership cannot be proven.
+
 ### PostgreSQL recovery
 
 The local SQLite command deliberately refuses external stores. PostgreSQL v2
@@ -120,3 +128,13 @@ The SQL file implements classification and mutation, not the operational writer
 fence or backup. Run it only after those steps are independently verified. SQL
 execution against a temporary PostgreSQL database does not establish successful
 managed PostgreSQL deployment, multi-host fencing, or restore verification.
+
+## Verification boundaries
+
+The maintenance unit tests use a synthetic Core journal/artifact layout and a
+controlled `ps` response. They execute Core's real inventory parser, worker
+ownership checks and application lock, alongside real managed SQLite and Auth
+grants. They verify rejection of matching workers and invalid process snapshots,
+but do not establish compatibility with a live Linux host's complete process
+table. Validate the installed Core version's maintenance behavior on the target
+host before relying on offline recovery.

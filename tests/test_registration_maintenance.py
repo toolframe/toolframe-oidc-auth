@@ -1,7 +1,9 @@
 """Legacy recovery with real managed stores and Core's maintenance boundary.
 
 The Core journal/artifact inventory is a synthetic stopped-layout fixture, not
-an installed worker deployment. Auth grants below use the real Auth provider.
+an installed worker deployment. Its process snapshot is controlled at the ps
+collection seam; Core's parser, ownership checks and HostLock remain real.
+Auth grants below use the real Auth provider.
 """
 
 import hashlib
@@ -9,11 +11,13 @@ import json
 import platform
 import shutil
 import sqlite3
+import subprocess
 import time
 from contextlib import closing
 
 import pytest
 import tomlkit
+import toolframe_core.maintenance as core_maintenance
 from conftest import caller
 from test_registration import register, restart
 from toolframe_auth.plugin import plugin as auth_definition
@@ -31,6 +35,22 @@ from toolframe_sql_sqlite.plugin import plugin as sql_definition
 
 from toolframe_oidc_auth.maintenance import recover_legacy
 from toolframe_oidc_auth.plugin import plugin
+
+
+@pytest.fixture
+def process_snapshot(monkeypatch):
+    """Supply this synthetic home's machine inventory without bypassing checks."""
+    snapshot = {"stdout": "1 1 /sbin/init\n", "calls": 0}
+    run = subprocess.run
+
+    def collect(command, *args, **kwargs):
+        if command == ["/bin/ps", "-axo", "pid=,pgid=,command="]:
+            snapshot["calls"] += 1
+            return subprocess.CompletedProcess(command, 0, snapshot["stdout"], "")
+        return run(command, *args, **kwargs)
+
+    monkeypatch.setattr(core_maintenance.subprocess, "run", collect)
+    return snapshot
 
 
 def stopped_layout(tmp_path, data):
@@ -133,7 +153,7 @@ def stopped_layout(tmp_path, data):
 
 
 @pytest.fixture
-async def legacy_home(provider, storage, tmp_path):
+async def legacy_home(provider, storage, tmp_path, process_snapshot):
     oidc, auth, login = provider
     with caller():
         # Seed pre-v2 registrations, including an Auth-only grant with no local
@@ -191,7 +211,11 @@ async def legacy_home(provider, storage, tmp_path):
     oidc.config["max_clients"] = 2
     assert (await register(oidc))["status"] == 400
     await storage.dispose()
-    return stopped_layout(tmp_path, tmp_path / "data"), grant["id"]
+    home = stopped_layout(tmp_path, tmp_path / "data")
+    # Prove this layout is accepted before each test adds its rejection case.
+    assert recover_legacy(home) == {"eligible": 1, "reclassified": 0}
+    assert process_snapshot["calls"] == 1
+    return home, grant["id"]
 
 
 @pytest.mark.parametrize("provider", ["v1"], indirect=True)
@@ -330,3 +354,40 @@ async def test_apply_requires_unused_backup_and_preserves_preimage(
             ).fetchone()[0]
             == 2
         )
+
+
+@pytest.mark.parametrize("provider", ["v1"], indirect=True)
+async def test_process_snapshot_rejects_matching_worker_but_allows_other_run(
+    legacy_home, process_snapshot, tmp_path
+):
+    home, _ = legacy_home
+    process_snapshot["stdout"] += (
+        "42 42 python -m toolframe_sdk.worker --host-token " + "b" * 32 + "/auth\n"
+    )
+    assert recover_legacy(home)["eligible"] == 1
+    process_snapshot["stdout"] += (
+        "43 43 python -m toolframe_sdk.worker --host-token " + "a" * 32 + "/auth\n"
+    )
+    backup = tmp_path / "refused-backup"
+    with pytest.raises(
+        PluginError, match="An application worker is still present"
+    ) as error:
+        recover_legacy(home, apply=True, backup_directory=backup)
+    assert error.value.code == "maintenance_ownership_unproven"
+    assert not backup.exists()
+
+
+@pytest.mark.parametrize("provider", ["v1"], indirect=True)
+@pytest.mark.parametrize(
+    "snapshot", ["not-a-pid 1 command\n", "1 1 init\n1 1 duplicate\n"]
+)
+async def test_process_snapshot_parser_still_rejects_unproven_inventory(
+    legacy_home, process_snapshot, snapshot, tmp_path
+):
+    home, _ = legacy_home
+    process_snapshot["stdout"] = snapshot
+    backup = tmp_path / "refused-backup"
+    with pytest.raises(PluginError) as error:
+        recover_legacy(home, apply=True, backup_directory=backup)
+    assert error.value.code == "maintenance_ownership_unproven"
+    assert not backup.exists()
