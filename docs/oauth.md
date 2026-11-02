@@ -46,7 +46,11 @@ OAuth; an unavailable optional OAuth plugin does not disable key verification.
 OAuth access tokens last 300 seconds by default (30–900 configurable); grants
 last 30 days by default (60 seconds–one year configurable). Tokens use 256 random
 bits and only digests are persisted. Codes expire after 60 seconds and are single
-use. Refresh tokens rotate, cannot outlive the grant, and replay revokes the
+use. Reusing an unexpired code with the matching client, redirect URI, resource
+and PKCE verifier revokes the grant issued from that code. A client that loses
+its first exchange response must start a new authorization flow. An invalid
+exchange or an expired code cannot revoke an existing grant. Refresh tokens
+rotate, cannot outlive the grant, and replay revokes the
 whole grant. Every MCP admission checks token expiry, resource binding, current
 user permissions and grant status. Already admitted operations may finish.
 

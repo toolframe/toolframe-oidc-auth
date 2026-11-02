@@ -45,7 +45,9 @@ class Peer:
         assert method == "service.call"
         target = self.router[params["alias"]]
         current = call_context.get() or {}
-        with caller(self.owner, current.get("principal")):
+        with caller(
+            self.owner, current.get("principal"), root_id=current.get("root_id", "root")
+        ):
             return await target.invoke(
                 SQL_SERVICE if params["alias"] == "sql" else "toolframe.auth",
                 params["method"],

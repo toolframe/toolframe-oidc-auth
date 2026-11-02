@@ -99,6 +99,7 @@ class Client(ClientMixin):
 class Code:
     def __init__(self, record):
         self.digest = record["digest"]
+        self.used = bool(record["used"])
         self.data = json.loads(record["data"])
         self.code_challenge = self.data["code_challenge"]
         self.code_challenge_method = "S256"
