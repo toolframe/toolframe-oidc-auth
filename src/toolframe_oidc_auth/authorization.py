@@ -114,7 +114,7 @@ class CodeGrant(AuthorizationCodeGrant):
                 "SELECT * FROM oauth_codes WHERE digest=?", [digest(code)]
             )
         )
-        if not rows or rows[0]["used"] or rows[0]["expires_at"] <= time.time():
+        if not rows or rows[0]["expires_at"] <= time.time():
             return None
         value = Code(rows[0])
         if value.data["client_id"] != client.client_id or value.data[
@@ -122,6 +122,26 @@ class CodeGrant(AuthorizationCodeGrant):
         ] != self.request.values.get("resource"):
             return None
         return value
+
+    def validate_token_request(self):
+        # The parent runs redirect validation and the S256 extension before
+        # returning. Invalid bindings must never revoke a legitimate grant.
+        super().validate_token_request()
+        code = self.request.authorization_code
+        if code.used:
+            self.server.sync(
+                self.server.store.execute(
+                    "UPDATE oauth_tokens SET revoked=1 WHERE grant_id=?",
+                    [code.data["grant_id"]],
+                )
+            )
+            self.server.sync(
+                self.server.plugin.context.call(
+                    "auth", "revoke_grant", {"id": code.data["grant_id"]}
+                )
+            )
+            # Authlib converts this denial to a response; commit the revocation.
+            raise InvalidGrantError("Authorization code already used; authorize again")
 
     def delete_authorization_code(self, code):
         self.server.sync(

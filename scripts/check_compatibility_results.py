@@ -20,9 +20,9 @@ def check_results(path, mode):
     ):
         raise ValueError("Compatibility tests contain failures or errors")
     if mode == "runtime":
-        if len(cases) != 34 or len(operator) != 12 or skipped != operator:
+        if len(cases) != 39 or len(operator) != 12 or skipped != operator:
             raise ValueError(
-                "Runtime lanes must execute 22 cases and skip only the 12 Core-only cases"
+                "Runtime lanes must execute 27 cases and skip only the 12 Core-only cases"
             )
     elif len(cases) != 12 or len(operator) != 12 or skipped:
         raise ValueError(

@@ -144,7 +144,7 @@ host before relying on offline recovery.
 
 SDK minimum/latest compatibility runs use the same plugin wheel without the
 `operator` extra. The twelve Core-dependent operator cases are individually
-reported as skipped in these runtime lanes; the other twenty-two cases execute.
+reported as skipped in these runtime lanes; the other twenty-seven cases execute.
 A separate operator lane installs that same wheel with `[operator]`, verifies
 the installed Core package and executes all twelve operator cases with no skips.
-Full distribution validation installs all extras and runs all thirty-four cases.
+Full distribution validation installs all extras and runs all thirty-nine cases.
